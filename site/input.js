@@ -21,6 +21,7 @@ class mouse{
     }
     static start(element=document.documentElement) {
         function mousemove(e) {
+            if(e.target!=element) return;
             let pos = mouse.transformPos(e);
             mouse.pos.x = pos.x;
             mouse.pos.y = pos.y;

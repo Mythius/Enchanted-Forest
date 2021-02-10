@@ -1,0 +1,13 @@
+canvas{
+	background-color: black;
+	display: block;
+	margin: auto;
+}
+body{
+	margin: 0;
+}
+img{
+	display: block;
+	margin: auto;
+	width: 200px;
+}
