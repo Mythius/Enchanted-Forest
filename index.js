@@ -4,6 +4,7 @@ var http = require('http').createServer(app);
 var io = require('socket.io')(http);
 var fs = require('fs');
 var system = require('child_process');
+var EF = require('./enchantedForest.js');
 
 var file = {
 	save: function(name,text){
@@ -19,18 +20,22 @@ var file = {
 	}
 }
 
+var ids = 0;
+
 class client{
 	static all = [];
 	constructor(socket){
 		this.socket = socket;
 		this.name = null;
 		this.tiles = [];
+		this.id = ids++;
 		client.all.push(this);
 		socket.on('disconnect',e=>{
 			let index = client.all.indexOf(this);
 			if(index != -1){
 				client.all.splice(index,1);
 			}
+			EF.removePlayer(this);
 		});
 	}
 	emit(name,dat){
@@ -50,4 +55,9 @@ http.listen(port,()=>{console.log('Serving Port: '+port)});
 
 io.on('connection',socket=>{
 	var c = new client(socket);
+
+	socket.on('EF-setup',name=>{
+		c.name = name;
+		EF.addPlayer(c);
+	});
 });
