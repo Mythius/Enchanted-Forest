@@ -3,9 +3,10 @@ const ctx = canvas.getContext('2d');
 const socket = io();
 const g = obj('game');
 hide(g);
-var name = location.href.includes('?')?location.href.split('?')[1]:prompt('Enter Name');
+const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Enter Name');
 var people;
 serverRequests();
+var pboxes = [];
 
 let a=16807,seed=1,c=0,m=2147483647;
 function pRandom(){
@@ -15,11 +16,17 @@ function pRandom(){
 	return r;
 }
 
+Array.prototype.rChoose = function(useseed=false){
+	if(useseed){
+		return this[pRandBetween(0,this.length-1)];
+	} else {
+		return this[random(0,this.length-1)];
+	}
+}
+
 function pRandBetween(min,max){
 	return Math.floor(min+pRandom()*(max-min+1));
 }
-
-for(let i=0;i<10;i++) console.log(pRandBetween(1,10));
 
 async function chooseColor(){
 	let p = new Promise((res,rej)=>{
@@ -107,6 +114,16 @@ function serverRequests(){
 	});
 }
 
+function listPlayers(){
+	let parent = obj('#players');
+	for(let p of people){
+		let div = create('div',p.name);
+		div.classList.add('player');
+		div.style.color = p.color;
+		parent.appendChild(div);
+		pboxes.push(div);
+	}
+}
 
 (function(global){
 	const MAP = loadImage('assets/map.jpg');
@@ -115,21 +132,27 @@ function serverRequests(){
 	global.EF = EF;
 
 	socket.emit('EF-setup',name);
-
-	socket.on('EF-lobby',people=>{
-
-	});
-
-	socket.on('EF-delgame',()=>{
-		location.href = './index.html?'+name;
-	});
-
+	socket.on('EF-delgame',()=>{location.href='./index.html?'+name});
 	socket.on('EF-game_start',data=>{
 		hide(obj('lobby'));
 		show(obj('game'));
+		obj('game').style.display='';
+		listPlayers();
 		setup(data);
 		loop();
-	})
+	});
+	socket.on('EF-turn',data=>{
+		console.log(data);
+		for(let pbox of pboxes){
+			pbox.style.border = '5px solid #222';
+		}
+		pboxes[data.pix].style.border = '5px solid yellow';
+		if(data.name == name){
+			// My Turn
+		} else {
+			//Not  my turn
+		}
+	});
 
 	var cards = [];
 	var trees = [];
@@ -183,6 +206,13 @@ function serverRequests(){
 		for(let i=0;i<13;i++){
 			Tree.all[i].assignHint(i,clips[i]);
 		}
+
+		if(people){
+			for(let i=0;i<people.length;i++){
+				new Piece(people[i].color,i);
+			}
+		}
+
 	}
 
 	setTimeout(setup,500);
@@ -232,12 +262,40 @@ function serverRequests(){
 		for(let i=0;i<cards.length-1;i++){
 			ctx.drawImage(cards[cards.length-i-1].img,545-(big_card?63/2:0),160-(big_card?111/2:0),big_card?63*2:63,big_card?111*2:111);
 		}
+		for(let piece of Piece.all){
+			piece.draw();
+		}
 		if(big_clip){
 			big_clip.drawTree();
 		}
 	}
 
-
+	class Piece extends Sprite{
+		static all = [];
+		constructor(color,ix){
+			super(`assets/${color}.svg`);
+			this.element.width = 60
+			this.element.height = 100;
+			this.circle = Circle.all[ix];
+			this.position = new Vector(this.circle.pos.x,this.circle.pos.y-10);
+			this.ix = ix;
+			this.element.width *= .35;
+			this.element.height *= .35;
+			this.opts = [];
+			Piece.all.push(this);
+		}
+		async moveTo(circle,speed=6){
+			let pos = circle.pos;
+			await this.slideTo(pos.x,pos.y-10,speed);
+			this.circle = circle;
+		}
+		async walkPath(path){
+			if(path.length == 0) return true;
+			await this.moveTo(path[0]);
+			path.shift();
+			return await this.walkPath(path);
+		}
+	}
 
 	class Tree extends Button{
 		static img = loadImage('assets/tree.jpg');
@@ -313,8 +371,30 @@ function serverRequests(){
 			this.cons.push(circle);
 			circle.cons.push(this);
 		}
+		getCircles(dist){
+			var list = [];
+			this.recur(dist,this,list);
+			return list;
+		}
+		recur(dist,prev,list){
+			this.temp_prev = prev;
+			if(dist == 0){
+				list.push(this);
+				return;
+			}
+			for(let other of this.cons){
+				if(other == prev) continue;
+				other.recur(dist-1,this,list);
+			}
+		}
+		trace(dist,result=[]){
+			result.unshift(this);
+			if(dist==0) return result;
+			else return this.temp_prev.trace(dist-1,result);
+		}
 	}
 
 	EF.start = loop;
 	EF.setup = setup;
+	global.pieces = Piece.all;
 })(this);

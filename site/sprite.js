@@ -332,7 +332,7 @@ class Sprite extends Hitbox{
 		ctx.translate(pos.x,pos.y);
 		ctx.rotate(Vector.rad(this.dir));
 		ctx.scale(this.transformX,1);
-		ctx.drawImage(this.element,-this.w/2,-this.h/2);
+		ctx.drawImage(this.element,-this.w/2,-this.h/2,this.element.width,this.element.height);
 		ctx.restore();
 		if(Hitbox.show) this.DRAW();
 	}

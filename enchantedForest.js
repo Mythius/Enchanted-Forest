@@ -8,8 +8,8 @@ class Game{
 		this.admin = admin;
 		this.players = [];
 		this.started = false;
-		this.colors = ['purple','yellow','green','tan','orange','blue'];
-		this.turn = 0;
+		this.colors = ['purple','yellow','green','tan','red','blue'];
+		this.turn = -1;
 		this.seed = random(0,3000);
 		this.admin.emit('EF-gobutton');
 		games.push(this);
@@ -24,6 +24,7 @@ class Game{
 		p.emit('EF-chooseColor',this.colors);
 		this.players.push(p);
 		p.color = '';
+		p.points = 0;
 		this.sendLobbyInfo();
 	}
 	sendLobbyInfo(){
@@ -42,6 +43,16 @@ class Game{
 		for(let p of this.players){
 			p.emit(msg,dat);
 		}
+	}
+	start(){
+		this.msgAll('EF-game_start',this.seed);
+		this.nextTurn();
+	}
+	nextTurn(){
+		this.turn = (this.turn+1)%this.players.length;
+		let cp = this.players[this.turn];
+		let d = {pix:this.turn,points:cp.points,color:cp.color,name:cp.name,d1:random(40,45),d2:random(40,45)};
+		this.msgAll('EF-turn',d);
 	}
 }
 
@@ -82,13 +93,12 @@ function handleData(player){
 		player.game.sendLobbyInfo();
 	});
 	socket.on('EF-begin',e=>{
-		player.game.msgAll('EF-game_start',player.game.seed);
+		player.game.start();
 	});
 }
 
 function addPlayer(player){
 	ingame.push(player);
-	player.loc = 'EF-lobby';
 	handleData(player);
 }
 
