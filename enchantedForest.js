@@ -51,7 +51,7 @@ class Game{
 	nextTurn(){
 		this.turn = (this.turn+1)%this.players.length;
 		let cp = this.players[this.turn];
-		let d = {pix:this.turn,points:cp.points,color:cp.color,name:cp.name,d1:random(40,45),d2:random(40,45)};
+		let d = {pix:this.turn,points:cp.points,color:cp.color,name:cp.name,d1:random(1,6),d2:random(1,6)};
 		this.msgAll('EF-turn',d);
 	}
 }
@@ -94,6 +94,14 @@ function handleData(player){
 	});
 	socket.on('EF-begin',e=>{
 		player.game.start();
+	});
+	socket.on('EF-nextturn',e=>{
+		player.game.nextTurn();
+	});
+	socket.on('EF-turninfo',data=>{
+		let person = player.game.players.indexOf(player);
+		console.log({data,person});
+		player.game.msgAll('EF-otherturn',{data,person});
 	});
 }
 

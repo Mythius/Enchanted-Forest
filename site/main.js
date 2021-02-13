@@ -3,161 +3,247 @@ const ctx = canvas.getContext('2d');
 const socket = io();
 const g = obj('game');
 hide(g);
+obj('iframe').style.opacity = 0;
+hide(obj('iframe'));
 const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Enter Name');
 var people;
-serverRequests();
 var pboxes = [];
-
-let a=16807,seed=1,c=0,m=2147483647;
-function pRandom(){
-	let pnr = (a*seed+c)%m;
-	let r = seed/m;
-	seed = pnr;
-	return r;
-}
-
-Array.prototype.rChoose = function(useseed=false){
-	if(useseed){
-		return this[pRandBetween(0,this.length-1)];
-	} else {
-		return this[random(0,this.length-1)];
-	}
-}
-
-function pRandBetween(min,max){
-	return Math.floor(min+pRandom()*(max-min+1));
-}
-
-async function chooseColor(){
-	let p = new Promise((res,rej)=>{
-		let c = document.querySelectorAll('.color');
-		for(let el of c){
-			el.on('click',e=>{
-				let c = el.style.backgroundColor;
-				hide(obj('colors'));
-				res(c);
-			});
-		}
-	});
-	return await p;
-}
-
-function serverRequests(){
-	socket.on('EF-chooseColor',async e=>{
-		show(obj('wait'));
-		hide(obj('main'));
-		chooseColor().then(color=>{
-			socket.emit('EF-color',color);
-		});
-	});
-
-	socket.on('EF-gobutton',e=>{
-		let b = create('button','Start');
-		obj('wait').appendChild(b);
-		b.on('click',e=>{
-			socket.emit('EF-begin');
-		});
-	});
-
-	socket.on('EF-waitdata',e=>{
-		people = e;
-		obj('peoplein').innerHTML = '';
-		for(let person of e){
-			let els = document.querySelectorAll('.color');
-			for(let el of els){
-				if(el.style.backgroundColor==person.color){
-					el.remove();
-				}
-			}
-			let p = create('p',person.name);
-			p.style.color = person.color.length?person.color:'white';
-			obj('peoplein').appendChild(p);
-		}
-	});
-
-	socket.on('EF-join',e=>{
-		let r = create('div',e.name+' wants to join!');
-		r.classList.add('req');
-		r.innerHTML += '<br>';
-		let a = create('div','✔');
-		let x = create('div','❌');
-		a.style.display='inline';
-		x.style.display='inline';
-		a.style.fontSize='30px';
-		x.style.fontSize='30px';
-		a.style.float='right';
-		x.style.float='left';
-		r.appendChild(a);
-		r.appendChild(x);
-		a.on('click',()=>{
-			r.remove();
-			socket.emit('EF-accept',e);
-		})
-		x.on('click',e=>{
-			r.remove();
-		})
-		obj('req').appendChild(r);
-	})
-
-	socket.on('EF-lobby',ppl=>{
-		obj('#people').innerHTML = '';
-		for(let p of ppl){
-			let ln = create('p',p);
-			ln.classList.add('ppl');
-			obj('#people').appendChild(ln);
-			ln.on('click',e=>{socket.emit('EF-request_join_game',p)});
-		}
-	})
-
-	socket.on('dc',person=>{
-		alert(person+' left the game');
-	});
-}
-
-function listPlayers(){
-	let parent = obj('#players');
-	for(let p of people){
-		let div = create('div',p.name);
-		div.classList.add('player');
-		div.style.color = p.color;
-		parent.appendChild(div);
-		pboxes.push(div);
-	}
-}
+var dice = [];
+var MY_TURN = false;
 
 (function(global){
 	const MAP = loadImage('assets/map.jpg');
 	const tree = loadImage('assets/tree.jpg');
 	const EF = {};
 	global.EF = EF;
-
-	socket.emit('EF-setup',name);
-	socket.on('EF-delgame',()=>{location.href='./index.html?'+name});
-	socket.on('EF-game_start',data=>{
-		hide(obj('lobby'));
-		show(obj('game'));
-		obj('game').style.display='';
-		listPlayers();
-		setup(data);
-		loop();
-	});
-	socket.on('EF-turn',data=>{
-		console.log(data);
-		for(let pbox of pboxes){
-			pbox.style.border = '5px solid #222';
-		}
-		pboxes[data.pix].style.border = '5px solid yellow';
-		if(data.name == name){
-			// My Turn
-		} else {
-			//Not  my turn
-		}
-	});
-
 	var cards = [];
 	var trees = [];
 	var clips = [];
 	var show_hint=false,big_card=false,big_clip=null;
+	const tree_circles = [31, 37, 43, 17, 20, 23, 73, 51, 58, 62, 68, 79, 83];
+	var finishTurn;
+	var current_dice = null;
+	var turn;
+
+
+	serverRequests();
+	function serverRequests(){
+		socket.emit('EF-setup',name);
+		socket.on('EF-delgame',()=>{location.href='./index.html?'+name});
+		socket.on('EF-chooseColor',async e=>{
+			show(obj('wait'));
+			hide(obj('main'));
+			chooseColor().then(color=>{
+				socket.emit('EF-color',color);
+			});
+		});
+		socket.on('EF-gobutton',e=>{
+			let b = create('button','Start');
+			obj('wait').appendChild(b);
+			b.on('click',e=>{
+				socket.emit('EF-begin');
+			});
+		});
+		socket.on('EF-waitdata',e=>{
+			people = e;
+			obj('peoplein').innerHTML = '';
+			for(let person of e){
+				let els = document.querySelectorAll('.color');
+				for(let el of els){
+					if(el.style.backgroundColor==person.color){
+						el.remove();
+					}
+				}
+				let p = create('p',person.name);
+				p.style.color = person.color.length?person.color:'white';
+				obj('peoplein').appendChild(p);
+			}
+		});
+		socket.on('EF-join',e=>{
+			let r = create('div',e.name+' wants to join!');
+			r.classList.add('req');
+			r.innerHTML += '<br>';
+			let a = create('div','✔');
+			let x = create('div','❌');
+			a.style.display='inline';
+			x.style.display='inline';
+			a.style.fontSize='30px';
+			x.style.fontSize='30px';
+			a.style.float='right';
+			x.style.float='left';
+			r.appendChild(a);
+			r.appendChild(x);
+			a.on('click',()=>{
+				r.remove();
+				socket.emit('EF-accept',e);
+			})
+			x.on('click',e=>{
+				r.remove();
+			})
+			obj('req').appendChild(r);
+		});
+		socket.on('EF-lobby',ppl=>{
+			obj('#people').innerHTML = '';
+			for(let p of ppl){
+				let ln = create('p',p);
+				ln.classList.add('ppl');
+				obj('#people').appendChild(ln);
+				ln.on('click',e=>{socket.emit('EF-request_join_game',p)});
+			}
+		});
+		socket.on('dc',person=>{
+			alert(person+' left the game');
+		});
+		socket.on('EF-game_start',data=>{
+			hide(obj('lobby'));
+			show(obj('game'));
+			obj('game').style.display='';
+			listPlayers();
+			setup(data);
+			loop();
+		});
+		socket.on('EF-turn',data=>{
+			turn = data;
+			for(let pbox of pboxes){
+				pbox.style.border = '5px solid #222';
+			}
+			pboxes[data.pix].style.border = '5px solid yellow';
+			if(data.name == name){
+				MY_TURN = true;
+				myTurn(data).then(done=>{
+					socket.emit('EF-nextturn');
+				});
+			} else {
+				//Not  my turn
+				MY_TURN = false;
+			}
+		});
+		socket.on('EF-otherturn',data=>{
+			if(MY_TURN) return;
+			let piece = Piece.all[data.person];
+			data.data = data.data.split(' ');
+			console.log(data);
+			if(data.data[0] == 'showdice'){
+				rollDice(turn.d1,turn.d2,false);
+			} else if(data.data[0] == 'moveto'){
+				let path = data.data[1].split(',').map(e=>Circle.all[e]);
+				piece.walkPath(path).then(circle=>{
+					movePieceData(piece,circle);
+				});
+			}
+		});
+	}
+
+	async function myTurn(data){
+		await rollDice(data.d1,data.d2);
+		let p = new Promise((res,rej)=>{
+			finishTurn = info => {
+				res(info);
+			}
+		});
+		let info = await p;
+		finishTurn = null;
+	}
+
+	function loadImage(src){
+		let img = new Image;
+		img.src = src;
+		return img;
+	}
+
+	let a=16807,seed=1,c=0,m=2147483647;
+	function pRandom(){
+		let pnr = (a*seed+c)%m;
+		let r = seed/m;
+		seed = pnr;
+		return r;
+	}
+
+	Array.prototype.rChoose = function(useseed=false){
+		if(useseed){
+			return this[pRandBetween(0,this.length-1)];
+		} else {
+			return this[random(0,this.length-1)];
+		}
+	}
+
+	async function rollDice(n1,n2,popup=true){
+		let iframe;
+		if(popup){
+			iframe = obj('iframe');
+			iframe.src = `rollDice.html?${n1}.${n2}`;
+			show(iframe);
+			iframe.style.opacity = 1;
+			let prom = new Promise((res,rej)=>{
+				setTimeout(e=>{
+					iframe.contentWindow.data = 'hi';
+					iframe.contentWindow.callback = function(){
+						setTimeout(res,500);
+					}
+				},300)
+			});
+			await prom;
+			socket.emit('EF-turninfo','showdice');
+		}
+		let d1 = new Button(445,461,25,25,click=>{
+			if(!MY_TURN) return;
+			current_dice = d1;
+		},loadImage(`assets/dice${n1}.jpg`));
+		d1.num = n1;
+		let d2 = new Button(445+30,461,25,25,click=>{
+			if(!MY_TURN) return;
+			current_dice = d2;
+		},loadImage(`assets/dice${n2}.jpg`));
+		d2.num = n2;
+		let done = new Button(445+60+10,461,50,25,click=>{
+			d1.hide();
+			d2.hide();
+			done.hide();
+			current_dice = null;
+			for(let c of Circle.all) c.isOpt = false;
+			if(finishTurn) finishTurn();
+			else console.warn('Finish Turn didn\'t work');
+		},loadImage(`assets/done.png`));
+		if(popup){
+			dice = [d1,d2,done];
+			iframe.contentWindow.callback = null;
+			iframe.style.opacity = 0;
+			setTimeout(()=>{
+				hide(iframe);
+			},400);
+		} else {
+			dice = [d1,d2];
+		}
+	}
+
+	function pRandBetween(min,max){
+		return Math.floor(min+pRandom()*(max-min+1));
+	}
+
+	async function chooseColor(){
+		let p = new Promise((res,rej)=>{
+			let c = document.querySelectorAll('.color');
+			for(let el of c){
+				el.on('click',e=>{
+					let c = el.style.backgroundColor;
+					hide(obj('colors'));
+					res(c);
+				});
+			}
+		});
+		return await p;
+	}
+
+	function listPlayers(){
+		let parent = obj('#players');
+		for(let p of people){
+			let div = create('div',p.name);
+			div.classList.add('player');
+			div.style.color = p.color;
+			parent.appendChild(div);
+			pboxes.push(div);
+		}
+	}
 
 	xml('assets/positions.json',data=>{
 		let objs = JSON.parse(data);
@@ -188,13 +274,7 @@ function listPlayers(){
 		cards.push({img:loadImage(name),ix:i});
 	}
 
-
-	function loadImage(src){
-		let img = new Image;
-		img.src = src;
-		return img;
-	}
-
+	setTimeout(setup,500);
 	function setup(data){
 
 		seed = data;
@@ -202,7 +282,7 @@ function listPlayers(){
 		clips = getClips(cards);
 
 		cards.sort((a,b)=>pRandom()-.5);
-
+		clips.sort((a,b)=>pRandom()-.5);
 		for(let i=0;i<13;i++){
 			Tree.all[i].assignHint(i,clips[i]);
 		}
@@ -212,10 +292,7 @@ function listPlayers(){
 				new Piece(people[i].color,i);
 			}
 		}
-
 	}
-
-	setTimeout(setup,500);
 
 	function getClips(cards){
 		let cnv = create('canvas');
@@ -241,6 +318,26 @@ function listPlayers(){
 		pile.draw();
 	}
 
+	function movePieceData(piece,newcircle,slide=false){
+		piece.circle.piece = null;
+		piece.circle = null;
+		if(slide) piece.moveTo(newcircle);
+		if(newcircle.piece){
+			let ix = Piece.all.indexOf(newcircle.piece);
+			// if(MY_TURN) socket.emit('EF-turninfo','landon '+ix);
+			let newspot;
+			for(let i=0;i<6;i++){
+				if(!Circle.all[i].piece){
+					newspot = Circle.all[i];
+					break;
+				}
+			}
+			movePieceData(newcircle.piece,newspot,true);
+		}
+		piece.circle = newcircle;
+		newcircle.piece = piece;
+	}
+
 	let pile = new Button(574,215,63,111,onclick=>{
 		let topcard = cards[0].ix;
 		big_card = true;
@@ -258,7 +355,32 @@ function listPlayers(){
 		for(let tree of Tree.all){
 			tree.drawTree();
 		}
-		Circle.getCurrent()?.draw('red');
+		if(MY_TURN && current_dice){
+			let my_piece = Piece.all[turn.pix];
+			highlightOpts(my_piece,current_dice.num);
+		}
+		let cur = Circle.getCurrent();
+		if(cur && cur.isOpt){
+			cur.draw('green');
+			if(mouse.down){
+				current_dice.hide();
+				let path = cur.trace(current_dice.num);
+				current_dice = null;
+				socket.emit('EF-turninfo','moveto '+path.map(e=>e.ix).join());
+				for(let circle of Circle.all) circle.isOpt = false;
+				pieces[turn.pix].walkPath(path).then(circle=>{
+					let curpiece = pieces[turn.pix];
+					movePieceData(curpiece,circle);
+					let ix = tree_circles.indexOf(circle.ix);
+					if(ix!=-1){
+						Tree.all[ix].showHint().then(e=>{
+							//after tree dissapears
+						});
+					}
+				});
+				mouse.down = false;
+			}
+		}
 		for(let i=0;i<cards.length-1;i++){
 			ctx.drawImage(cards[cards.length-i-1].img,545-(big_card?63/2:0),160-(big_card?111/2:0),big_card?63*2:63,big_card?111*2:111);
 		}
@@ -267,6 +389,19 @@ function listPlayers(){
 		}
 		if(big_clip){
 			big_clip.drawTree();
+		}
+		for(let die of dice){
+			die.draw(die==current_dice?'green':'transparent');
+		}
+	}
+
+	function highlightOpts(piece,num){
+		for(let circle of Circle.all){
+			circle.isOpt = false;
+		}
+		let opts = piece.circle.getCircles(num);
+		for(let opt of opts){
+			opt.isOpt = true;
 		}
 	}
 
@@ -287,13 +422,12 @@ function listPlayers(){
 		async moveTo(circle,speed=6){
 			let pos = circle.pos;
 			await this.slideTo(pos.x,pos.y-10,speed);
-			this.circle = circle;
 		}
-		async walkPath(path){
-			if(path.length == 0) return true;
+		async walkPath(path,prev){
+			if(path.length == 0) return prev;
 			await this.moveTo(path[0]);
-			path.shift();
-			return await this.walkPath(path);
+			let previ = path.shift();
+			return await this.walkPath(path,previ);
 		}
 	}
 
@@ -344,7 +478,7 @@ function listPlayers(){
 		constructor(pos,ix){
 			this.pos = pos;
 			this.ix = ix;
-			this.color = 'black';
+			this.color = 'transparent';
 			this.cons = [];
 			Circle.all.push(this);
 		}
@@ -352,7 +486,7 @@ function listPlayers(){
 			let dist = Vector.distance(this.pos.x,this.pos.y,mousepos.x,mousepos.y);
 			return dist <= Circle.radius;
 		}
-		draw(color=this.color){
+		draw(color=this.isOpt?'yellow':this.color){
 			// for(let con of this.cons){
 			// 	ctx.beginPath();
 			// 	ctx.strokeStyle = 'cyan';
@@ -363,7 +497,7 @@ function listPlayers(){
 			// }
 			ctx.beginPath();
 			ctx.strokeStyle = color;
-			ctx.lineWidth = 2;
+			ctx.lineWidth = this.isOpt?5:2;
 			ctx.arc(this.pos.x,this.pos.y,Circle.radius,0,Math.PI*2);
 			ctx.stroke();
 		}
@@ -396,5 +530,7 @@ function listPlayers(){
 
 	EF.start = loop;
 	EF.setup = setup;
+	EF.Circle = Circle;
+	EF.Tree = Tree;
 	global.pieces = Piece.all;
 })(this);

@@ -2,7 +2,7 @@ const obj=id=>document.querySelector(id);
 Node.prototype.on=function(a,b,c){this.addEventListener(a,b,c)};
 const random=(min,max)=>Math.floor(min+Math.random()*(max-min+1));
 const rColor=()=>'rgb('+random(0,255)+','+random(0,255)+','+random(0,255)+')';
-function show(o){o.style.display='inherit';}
+function show(o,style='inherit'){o.style.display=style;}
 function hide(o){o.style.display='none';}
 function create(el,text=''){
     let e = document.createElement(el);
