@@ -10,13 +10,16 @@ class Game{
 		this.started = false;
 		this.colors = ['purple','yellow','green','tan','red','blue'];
 		this.turn = -1;
-		this.seed = random(0,3000);
+		// this.seed = random(0,3000);
+		this.seed = 235;
 		this.admin.emit('EF-gobutton');
+		this.over = false;
 		games.push(this);
 		this.addPerson(admin);
 		updateLobby();
 	}
 	caniJoin(person){
+		if(this.players.length > 5) return;
 		this.admin.emit('EF-join',{name:person.name,id:person.id});
 	}
 	addPerson(p){
@@ -45,13 +48,23 @@ class Game{
 		}
 	}
 	start(){
-		this.msgAll('EF-game_start',this.seed);
-		this.nextTurn();
+		for(let p of this.players){
+			if(!p.color){
+				p.color = this.colors.shift();
+			}
+		}
+		this.sendLobbyInfo();
+		setTimeout(()=>{
+			this.msgAll('EF-game_start',this.seed);
+			this.nextTurn();
+		},50);
 	}
 	nextTurn(){
+		if(this.other) return;
 		this.turn = (this.turn+1)%this.players.length;
 		let cp = this.players[this.turn];
-		let d = {pix:this.turn,points:cp.points,color:cp.color,name:cp.name,d1:random(1,6),d2:random(1,6)};
+		// let d = {pix:this.turn,points:cp.points,color:cp.color,name:cp.name,d1:random(1,6),d2:random(1,6)};
+		let d = {pix:this.turn,points:cp.points,color:cp.color,name:cp.name,d1:6,d2:6};
 		this.msgAll('EF-turn',d);
 	}
 }
@@ -95,13 +108,29 @@ function handleData(player){
 	socket.on('EF-begin',e=>{
 		player.game.start();
 	});
-	socket.on('EF-nextturn',e=>{
+	socket.on('EF-nextturn',scored=>{
 		player.game.nextTurn();
+		if(scored){
+			player.points++;
+		}
 	});
 	socket.on('EF-turninfo',data=>{
 		let person = player.game.players.indexOf(player);
 		console.log({data,person});
 		player.game.msgAll('EF-otherturn',{data,person});
+	});
+	socket.on('EF-sendpoints',data=>{
+		player.points++;
+		let ix = 0;
+		let players = player.game.players.map(player=>{
+			return {ix:ix++,points:player.points,name:player.name};
+		});
+		console.log('Updating Points:',players);
+		player.game.msgAll('EF-showPoints',players);
+		if(player.points > 2){
+			player.game.msgAll('EF-winner',player.name);
+			player.game.over = true;
+		}
 	});
 }
 

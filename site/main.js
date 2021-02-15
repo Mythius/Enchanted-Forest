@@ -19,11 +19,55 @@ var MY_TURN = false;
 	var cards = [];
 	var trees = [];
 	var clips = [];
+	var past_river = [];
 	var show_hint=false,big_card=false,big_clip=null;
 	const tree_circles = [31, 37, 43, 17, 20, 23, 73, 51, 58, 62, 68, 79, 83];
 	var finishTurn;
 	var current_dice = null;
 	var turn;
+	var guesstreeprom;
+	var gotCard = false;
+
+
+	for(let i=0;i<13;i++){
+		let name = 'assets/'+('00'+i).slice(-2)+'.jpg';
+		cards.push({img:loadImage(name),ix:i});
+	}
+
+	mouse.start(canvas);
+	keys.start();
+	Touch.init(data=>{
+		mouse.pos.x = data.pos.x;
+		mouse.pos.y = data.pos.y;
+		mouse.down = true;
+		setTimeout(()=>{
+			mouse.down = false;
+		},300);
+	});
+
+	xml('assets/positions.json',data=>{
+		let objs = JSON.parse(data);
+		let ix = 0;
+		for(let obj of objs) {
+			new Circle(obj,ix++);
+		}
+		xml('assets/connections.json',data=>{
+			let objs = JSON.parse(data);
+			for(let obj of objs){
+				Circle.all[obj.t].addCon(Circle.all[obj.f]);
+			}
+		});
+	});
+	xml('assets/treepos.json',data=>{
+		let objs = JSON.parse(data);
+		let ix = 0;
+		for(let obj of objs){
+			new Tree(obj,ix++);
+		}
+	});
+	xml('assets/river.json',data=>{
+		past_river = JSON.parse(data);
+	});
 
 
 	serverRequests();
@@ -118,11 +162,13 @@ var MY_TURN = false;
 				MY_TURN = false;
 			}
 		});
+		socket.on('EF-showPoints',data=>{
+			setPoints(data);
+		})
 		socket.on('EF-otherturn',data=>{
 			if(MY_TURN) return;
 			let piece = Piece.all[data.person];
 			data.data = data.data.split(' ');
-			console.log(data);
 			if(data.data[0] == 'showdice'){
 				rollDice(turn.d1,turn.d2,false);
 			} else if(data.data[0] == 'moveto'){
@@ -130,15 +176,29 @@ var MY_TURN = false;
 				piece.walkPath(path).then(circle=>{
 					movePieceData(piece,circle);
 				});
+			} else if(data.data[0] == 'shuffle'){
+				shuffleCards();
+			} else if(data.data[0] == 'popdeck'){
+				cards.shift();
+			} else if(data.data[0] == 'guess'){
+				let tree_ix = Number(data.data[1]);
+				Tree.all[tree_ix].shiny = true;
+				setTimeout(()=>{
+					Tree.all[tree_ix].shiny = false;
+				},2500);
 			}
+		});
+		socket.on('EF-winner',winner=>{
+
 		});
 	}
 
 	async function myTurn(data){
+		gotCard = false;
 		await rollDice(data.d1,data.d2);
 		let p = new Promise((res,rej)=>{
-			finishTurn = info => {
-				res(info);
+			finishTurn = () => {
+				res(gotCard);
 			}
 		});
 		let info = await p;
@@ -157,6 +217,13 @@ var MY_TURN = false;
 		let r = seed/m;
 		seed = pnr;
 		return r;
+	}
+
+	function setSeed(s=1){
+		a=16807;
+		seed=s;
+		c=0;
+		m=2147483647;
 	}
 
 	Array.prototype.rChoose = function(useseed=false){
@@ -185,27 +252,53 @@ var MY_TURN = false;
 			await prom;
 			socket.emit('EF-turninfo','showdice');
 		}
-		let d1 = new Button(445,461,25,25,click=>{
+		let d1 = new Button(445,475,25,25,click=>{
 			if(!MY_TURN) return;
 			current_dice = d1;
 		},loadImage(`assets/dice${n1}.jpg`));
 		d1.num = n1;
-		let d2 = new Button(445+30,461,25,25,click=>{
+		let d2 = new Button(445+30,475,25,25,click=>{
 			if(!MY_TURN) return;
 			current_dice = d2;
 		},loadImage(`assets/dice${n2}.jpg`));
+		let magic,shuffle;
 		d2.num = n2;
-		let done = new Button(445+60+10,461,50,25,click=>{
+		if(n1==n2){
+			magic = new Button(445-30,475,25,25,click=>{
+				if(!MY_TURN) return;
+				current_dice = magic;
+			},loadImage('assets/magic.png'));
+			magic.num = 'm';
+			shuffle = new Button(622,292,25,25,click=>{
+				if(!MY_TURN) return;
+				d1.hide();
+				d2.hide();
+				magic.hide();
+				shuffle.hide();
+				current_dice = null;
+				for(let c of Circle.all) c.isOpt = false;
+				shuffleCards();
+				socket.emit('EF-turninfo','shuffle');
+			},loadImage('assets/shuffle.png'));	
+		}
+		let done = new Button(445+60+10,475,50,25,click=>{
 			d1.hide();
 			d2.hide();
 			done.hide();
+			if(magic) magic.hide();
+			if(shuffle) shuffle.hide();
 			current_dice = null;
 			for(let c of Circle.all) c.isOpt = false;
 			if(finishTurn) finishTurn();
 			else console.warn('Finish Turn didn\'t work');
 		},loadImage(`assets/done.png`));
+		done.resist = true;
 		if(popup){
 			dice = [d1,d2,done];
+			if(n1==n2){
+				dice.push(magic);
+				dice.push(shuffle);
+			}
 			iframe.contentWindow.callback = null;
 			iframe.style.opacity = 0;
 			setTimeout(()=>{
@@ -234,10 +327,15 @@ var MY_TURN = false;
 		return await p;
 	}
 
+	function shuffleCards(){
+		cards = cards.sort((a,b)=>pRandom()-.5);
+		global.cards = cards;
+	}
+
 	function listPlayers(){
 		let parent = obj('#players');
 		for(let p of people){
-			let div = create('div',p.name);
+			let div = create('div',p.name+' (0)');
 			div.classList.add('player');
 			div.style.color = p.color;
 			parent.appendChild(div);
@@ -245,56 +343,21 @@ var MY_TURN = false;
 		}
 	}
 
-	xml('assets/positions.json',data=>{
-		let objs = JSON.parse(data);
-		let ix = 0;
-		for(let obj of objs) {
-			new Circle(obj,ix++);
+	function setPoints(players){
+		let divs = obj('#players').children;
+		for(let i=0;i<players.length;i++){
+			divs[i].innerHTML = `${players[i].name} (${players[i].points})`
 		}
-		xml('assets/connections.json',data=>{
-			let objs = JSON.parse(data);
-			for(let obj of objs){
-				Circle.all[obj.t].addCon(Circle.all[obj.f]);
-			}
-		});
-	});
-	xml('assets/treepos.json',data=>{
-		let objs = JSON.parse(data);
-		let ix = 0;
-		for(let obj of objs){
-			new Tree(obj,ix++);
-		}
-	});
-
-	mouse.start(canvas);
-	keys.start();
-	Touch.init(data=>{
-		mouse.pos.x = data.pos.x;
-		mouse.pos.y = data.pos.y;
-		mouse.down = true;
-		setTimeout(()=>{
-			mouse.down = false;
-		},300);
-	});
-
-	for(let i=0;i<13;i++){
-		let name = 'assets/'+('00'+i).slice(-2)+'.jpg';
-		cards.push({img:loadImage(name),ix:i});
 	}
 
-	setTimeout(setup,500);
 	function setup(data){
-
 		seed = data;
-
 		clips = getClips(cards);
-
-		cards.sort((a,b)=>pRandom()-.5);
-		clips.sort((a,b)=>pRandom()-.5);
+		clips = clips.sort((a,b)=>pRandom()-.5);
 		for(let i=0;i<13;i++){
-			Tree.all[i].assignHint(i,clips[i]);
+			Tree.all[i].assignHint(clips[i].ix,clips[i].img);
 		}
-
+		shuffleCards();
 		if(people){
 			for(let i=0;i<people.length;i++){
 				new Piece(people[i].color,i);
@@ -306,7 +369,7 @@ var MY_TURN = false;
 		let cnv = create('canvas');
 		let cctx = cnv.getContext('2d');
 		var clips = [];
-		// document.body.appendChild(cnv);
+		let ix = 0;
 		for(let card of cards){
 			cnv.width = 255*2;
 			cnv.height = 255*2;
@@ -314,7 +377,8 @@ var MY_TURN = false;
 			cctx.arc(340-82,368-109,255,0,Math.PI*2);
 			cctx.clip();
 			cctx.drawImage(card.img,-82,-109);
-			clips.push(loadImage(cnv.toDataURL()));
+			let o = {img:loadImage(cnv.toDataURL()),ix:ix++}
+			clips.push(o);
 		}
 		return clips;
 	}
@@ -326,24 +390,25 @@ var MY_TURN = false;
 		pile.draw();
 	}
 
+	function movePieceHome(piece){
+		let ix = Piece.all.indexOf(piece);
+		let newspot;
+		for(let i=0;i<6;i++){
+			if(!Circle.all[i].piece){
+				newspot = Circle.all[i];
+				break;
+			}
+		}
+		movePieceData(piece,newspot,true);
+		return newspot;
+	}
+
 	function movePieceData(piece,newcircle,slide=false){
 		piece.circle.piece = null;
 		piece.circle = null;
 		if(slide) piece.moveTo(newcircle);
 		if(newcircle.piece){
-			let ix = Piece.all.indexOf(newcircle.piece);
-			// if(MY_TURN) socket.emit('EF-turninfo','landon '+ix);
-			let newspot;
-			for(let i=0;i<6;i++){
-				if(!Circle.all[i].piece){
-					newspot = Circle.all[i];
-					break;
-				}
-			}
-			movePieceData(newcircle.piece,newspot,true);
-			
-		} else {
-			audio.play('assets/click.wav',false,.5);
+			movePieceHome(newcircle.piece);
 		}
 		piece.circle = newcircle;
 		newcircle.piece = piece;
@@ -360,12 +425,8 @@ var MY_TURN = false;
 	function drawMap(){
 		ctx.drawImage(MAP,0,0,canvas.width,canvas.height);
 		let top = cards[0];
-		for(let circle of Circle.all){
-			circle.draw();
-		}
-		for(let tree of Tree.all){
-			tree.drawTree();
-		}
+		for(let circle of Circle.all) circle.draw();
+		for(let tree of Tree.all) tree.drawTree();
 		if(MY_TURN && current_dice){
 			let my_piece = Piece.all[turn.pix];
 			highlightOpts(my_piece,current_dice.num);
@@ -376,6 +437,19 @@ var MY_TURN = false;
 			if(mouse.down){
 				current_dice.hide();
 				let path = cur.trace(current_dice.num);
+				if(current_dice.num=='m'){
+					for(let d of dice){
+						if(!d.resist) d.hide();
+					}
+				} else {
+					for(let d of dice){
+						if(typeof d.num != 'number'){
+							if(!d.resist){
+								d.hide();
+							}
+						}
+					}
+				}
 				current_dice = null;
 				socket.emit('EF-turninfo','moveto '+path.map(e=>e.ix).join());
 				for(let circle of Circle.all) circle.isOpt = false;
@@ -388,21 +462,48 @@ var MY_TURN = false;
 							//after tree dissapears
 						});
 					}
+					if(circle.ix == 123){
+						keyLand();
+					}
 				});
 				mouse.down = false;
 			}
+		} else if(cur){
+			// CERTAIN CIRCLE DATA
 		}
-		for(let i=0;i<cards.length-1;i++){
-			ctx.drawImage(cards[cards.length-i-1].img,545-(big_card?63/2:0),160-(big_card?111/2:0),big_card?63*2:63,big_card?111*2:111);
+		if(!big_card){
+			ctx.drawImage(cards[0].img,545,160,63,111);
 		}
-		for(let piece of Piece.all){
-			piece.draw();
+		for(let piece of Piece.all) piece.draw();
+		if(big_clip) big_clip.drawTree();
+		for(let die of dice) die.draw(die==current_dice?'green':'transparent');
+		if(big_card){
+			ctx.drawImage(cards[0].img,545-63/2,160-111/2,63*2,111*2);
 		}
-		if(big_clip){
-			big_clip.drawTree();
-		}
-		for(let die of dice){
-			die.draw(die==current_dice?'green':'transparent');
+	}
+
+	async function guessTree(){
+		Tree.light = true;
+		let p = new Promise((res,rej)=>{
+			guesstreeprom = res;
+		});
+		let tree_ix = await p;
+		socket.emit('EF-turninfo','guess '+tree_ix);
+		guesstreeprom = null;
+		Tree.light = false;
+		return cards[0].ix == tree_ix;
+	}
+
+	async function keyLand(){
+		let correct = await guessTree();
+		if(correct){
+			gotCard = true;
+			socket.emit('EF-turninfo','popdeck');
+			socket.emit('EF-sendpoints');
+			cards.shift();
+		} else {
+			let pos = movePieceHome(Piece.all[turn.pix]);
+			socket.emit('EF-turninfo','moveto '+pos.ix);
 		}
 	}
 
@@ -410,9 +511,22 @@ var MY_TURN = false;
 		for(let circle of Circle.all){
 			circle.isOpt = false;
 		}
-		let opts = piece.circle.getCircles(num);
-		for(let opt of opts){
-			opt.isOpt = true;
+		if(num == 'm'){
+			for(let t of tree_circles){
+				let c = Circle.all[t];
+				if(c.piece) continue;
+				c.isOpt = true;
+			}
+			if(past_river.includes(piece.circle.ix)){
+				Circle.all[123].isOpt = true; // KEY
+			} else {
+				Circle.all[98].isOpt = true; // Past Stone Bridge
+			}
+		} else {
+			let opts = piece.circle.getCircles(num);
+			for(let opt of opts){
+				opt.isOpt = true;
+			}
 		}
 	}
 
@@ -443,13 +557,22 @@ var MY_TURN = false;
 	}
 
 	class Tree extends Button{
-		static img = loadImage('assets/tree.jpg');
 		static all = [];
+		static set light(tf){
+			for(let t of Tree.all) t.shiny = tf;
+			show_hint = tf;
+		}
 		constructor(pos,ix){
 			function onclick(){
-				if(show_hint) this.showHint();
+				if(show_hint){
+					this.showHint().then(e=>{
+						if(guesstreeprom){
+							guesstreeprom(this.hint);
+						}
+					});
+				}
 			}
-			super(pos.x+17,pos.y+27,36,48,onclick,Tree.img);
+			super(pos.x+17,pos.y+27,36,48,onclick,loadImage('assets/tree.png'));
 			this.pos = pos;
 			this.ix = ix;
 			this.onclick = onclick;
@@ -465,6 +588,9 @@ var MY_TURN = false;
 			if(this.showing && this.clip){
 				ctx.drawImage(this.clip,canvas.width/2-100,canvas.height/2-100,200,200);
 			}
+		}
+		set shiny(tf){
+			this.img.src = tf?'assets/lighttree.png':'assets/tree.png';
 		}
 		async showHint(){
 			let prom = new Promise((res,rej)=>{
@@ -533,6 +659,7 @@ var MY_TURN = false;
 			}
 		}
 		trace(dist,result=[]){
+			if(dist=='m') return [this];
 			result.unshift(this);
 			if(dist==0) return result;
 			else return this.temp_prev.trace(dist-1,result);
@@ -543,5 +670,7 @@ var MY_TURN = false;
 	EF.setup = setup;
 	EF.Circle = Circle;
 	EF.Tree = Tree;
+	global.guessTree = guessTree;
 	global.pieces = Piece.all;
+	global.setPoints = setPoints;
 })(this);
