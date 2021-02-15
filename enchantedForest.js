@@ -10,8 +10,8 @@ class Game{
 		this.started = false;
 		this.colors = ['purple','yellow','green','tan','red','blue'];
 		this.turn = -1;
-		// this.seed = random(0,3000);
-		this.seed = 235;
+		this.seed = random(0,3000);
+		// this.seed = 235;
 		this.admin.emit('EF-gobutton');
 		this.over = false;
 		games.push(this);
@@ -63,8 +63,8 @@ class Game{
 		if(this.other) return;
 		this.turn = (this.turn+1)%this.players.length;
 		let cp = this.players[this.turn];
-		// let d = {pix:this.turn,points:cp.points,color:cp.color,name:cp.name,d1:random(1,6),d2:random(1,6)};
-		let d = {pix:this.turn,points:cp.points,color:cp.color,name:cp.name,d1:6,d2:6};
+		let d = {pix:this.turn,points:cp.points,color:cp.color,name:cp.name,d1:random(1,6),d2:random(1,6)};
+		// let d = {pix:this.turn,points:cp.points,color:cp.color,name:cp.name,d1:6,d2:6};
 		this.msgAll('EF-turn',d);
 	}
 }
@@ -110,9 +110,6 @@ function handleData(player){
 	});
 	socket.on('EF-nextturn',scored=>{
 		player.game.nextTurn();
-		if(scored){
-			player.points++;
-		}
 	});
 	socket.on('EF-turninfo',data=>{
 		let person = player.game.players.indexOf(player);

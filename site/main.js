@@ -188,9 +188,12 @@ var MY_TURN = false;
 				},2500);
 			}
 		});
-		socket.on('EF-winner',winner=>{
+		socket.on('EF-winner',displayWinner);
+	}
 
-		});
+	function displayWinner(winner){
+		obj('#win').innerHTML = winner;
+		show(obj('#win'));
 	}
 
 	async function myTurn(data){
@@ -453,8 +456,8 @@ var MY_TURN = false;
 				current_dice = null;
 				socket.emit('EF-turninfo','moveto '+path.map(e=>e.ix).join());
 				for(let circle of Circle.all) circle.isOpt = false;
-				pieces[turn.pix].walkPath(path).then(circle=>{
-					let curpiece = pieces[turn.pix];
+				Piece.all[turn.pix].walkPath(path).then(circle=>{
+					let curpiece = Piece.all[turn.pix];
 					movePieceData(curpiece,circle);
 					let ix = tree_circles.indexOf(circle.ix);
 					if(ix!=-1){
@@ -668,9 +671,5 @@ var MY_TURN = false;
 
 	EF.start = loop;
 	EF.setup = setup;
-	EF.Circle = Circle;
-	EF.Tree = Tree;
-	global.guessTree = guessTree;
-	global.pieces = Piece.all;
-	global.setPoints = setPoints;
+	global.displayWinner = displayWinner;
 })(this);
