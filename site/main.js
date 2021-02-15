@@ -241,7 +241,7 @@ var MY_TURN = false;
 		let iframe;
 		if(popup){
 			iframe = obj('iframe');
-			iframe.src = `rollDice.html?${n1}.${n2}`;
+			iframe.src = `rolldice.html?${n1}.${n2}`;
 			show(iframe);
 			iframe.style.opacity = 1;
 			let prom = new Promise((res,rej)=>{
