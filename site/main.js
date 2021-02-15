@@ -268,6 +268,14 @@ var MY_TURN = false;
 
 	mouse.start(canvas);
 	keys.start();
+	Touch.init(data=>{
+		mouse.pos.x = data.pos.x;
+		mouse.pos.y = data.pos.y;
+		mouse.down = true;
+		setTimeout(()=>{
+			mouse.down = false;
+		},300);
+	});
 
 	for(let i=0;i<13;i++){
 		let name = 'assets/'+('00'+i).slice(-2)+'.jpg';
@@ -333,6 +341,9 @@ var MY_TURN = false;
 				}
 			}
 			movePieceData(newcircle.piece,newspot,true);
+			
+		} else {
+			audio.play('assets/click.wav',false,.5);
 		}
 		piece.circle = newcircle;
 		newcircle.piece = piece;
