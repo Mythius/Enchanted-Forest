@@ -6,10 +6,7 @@ hide(g);
 obj('iframe').style.opacity = 0;
 hide(obj('iframe'));
 const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Enter Name');
-var people;
-var pboxes = [];
-var dice = [];
-var MY_TURN = false;
+
 
 (function(global){
 	const MAP = loadImage('assets/map.jpg');
@@ -27,6 +24,10 @@ var MY_TURN = false;
 	var turn;
 	var guesstreeprom;
 	var gotCard = false;
+	var people;
+	var pboxes = [];
+	var dice = [];
+	var MY_TURN = false;
 
 
 	for(let i=0;i<13;i++){
@@ -239,8 +240,10 @@ var MY_TURN = false;
 
 	async function rollDice(n1,n2,popup=true){
 		let iframe;
+		dice = [];
 		if(popup){
 			iframe = obj('iframe');
+			mouse.down = false;
 			iframe.src = `rolldice.html?${n1}.${n2}`;
 			show(iframe);
 			iframe.style.opacity = 1;
@@ -264,7 +267,8 @@ var MY_TURN = false;
 			if(!MY_TURN) return;
 			current_dice = d2;
 		},loadImage(`assets/dice${n2}.jpg`));
-		let magic,shuffle;
+		var onkey = false;
+		let magic,shuffle,guess;
 		d2.num = n2;
 		if(n1==n2){
 			magic = new Button(445-30,475,25,25,click=>{
@@ -274,15 +278,22 @@ var MY_TURN = false;
 			magic.num = 'm';
 			shuffle = new Button(622,292,25,25,click=>{
 				if(!MY_TURN) return;
-				d1.hide();
-				d2.hide();
-				magic.hide();
-				shuffle.hide();
+				for(let d of dice) if(!d.resist) d.hide();
 				current_dice = null;
 				for(let c of Circle.all) c.isOpt = false;
 				shuffleCards();
 				socket.emit('EF-turninfo','shuffle');
 			},loadImage('assets/shuffle.png'));	
+		}
+		if(Piece.all[turn.pix].circle.ix == 123 && MY_TURN){
+			onkey = true;
+			guess = new Button(622-30,292,25,25,click=>{
+				for(let d of dice) if(!d.resist) d.hide();
+				current_dice = null;
+				keyLand();
+				current_dice = null;
+				for(let c of Circle.all) c.isOpt = false;
+			},loadImage('assets/guess.png'));
 		}
 		let done = new Button(445+60+10,475,50,25,click=>{
 			d1.hide();
@@ -302,6 +313,7 @@ var MY_TURN = false;
 				dice.push(magic);
 				dice.push(shuffle);
 			}
+			if(onkey) dice.push(guess);
 			iframe.contentWindow.callback = null;
 			iframe.style.opacity = 0;
 			setTimeout(()=>{
@@ -499,6 +511,7 @@ var MY_TURN = false;
 
 	async function keyLand(){
 		let correct = await guessTree();
+		for(let die of dice) if(!die.resist) die.hide();
 		if(correct){
 			gotCard = true;
 			socket.emit('EF-turninfo','popdeck');
@@ -671,5 +684,4 @@ var MY_TURN = false;
 
 	EF.start = loop;
 	EF.setup = setup;
-	global.displayWinner = displayWinner;
 })(this);
