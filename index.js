@@ -23,7 +23,6 @@ var file = {
 var ids = 0;
 
 class client{
-	static all = [];
 	constructor(socket){
 		this.socket = socket;
 		this.name = null;
@@ -42,6 +41,7 @@ class client{
 		this.socket.emit(name,dat);
 	}
 }
+client.all = [];
 
 const port = 80;
 const path = __dirname+'/';
