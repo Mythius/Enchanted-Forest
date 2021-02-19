@@ -33,6 +33,12 @@ button,#games,colors,peoplein{
 	font-size: 20px;
 	text-align: center;
 }
+@media only screen and (max-width: 800px) {
+	button,#games,colors,peoplein,req{
+		width: 100% !important;
+	}
+
+}
 @font-face{
 	font-family: old;
 	src: url('assets/font.ttf');

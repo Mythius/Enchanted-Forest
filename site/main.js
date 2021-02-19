@@ -253,7 +253,7 @@ const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Ent
 					iframe.contentWindow.callback = function(){
 						setTimeout(res,500);
 					}
-				},300)
+				},700)
 			});
 			await prom;
 			socket.emit('EF-turninfo','showdice');
