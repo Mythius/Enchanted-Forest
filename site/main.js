@@ -7,7 +7,6 @@ obj('iframe').style.opacity = 0;
 hide(obj('iframe'));
 const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Enter Name');
 
-
 (function(global){
 	const MAP = loadImage('assets/map.jpg');
 	const tree = loadImage('assets/tree.jpg');
@@ -28,7 +27,6 @@ const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Ent
 	var pboxes = [];
 	var dice = [];
 	var MY_TURN = false;
-
 
 	for(let i=0;i<13;i++){
 		let name = 'assets/'+('00'+i).slice(-2)+'.jpg';
@@ -69,7 +67,6 @@ const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Ent
 	xml('assets/river.json',data=>{
 		past_river = JSON.parse(data);
 	});
-
 
 	serverRequests();
 	function serverRequests(){
@@ -253,7 +250,11 @@ const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Ent
 					iframe.contentWindow.callback = function(){
 						setTimeout(res,500);
 					}
+<<<<<<< HEAD
 				},700)
+=======
+				},300);
+>>>>>>> 153be1b62aa1ad8233925d5b691329ecf0c9206b
 			});
 			await prom;
 			socket.emit('EF-turninfo','showdice');
@@ -344,7 +345,6 @@ const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Ent
 
 	function shuffleCards(){
 		cards = cards.sort((a,b)=>pRandom()-.5);
-		global.cards = cards;
 	}
 
 	function listPlayers(){
