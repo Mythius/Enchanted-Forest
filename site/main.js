@@ -27,6 +27,7 @@ const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Ent
 	var pboxes = [];
 	var dice = [];
 	var MY_TURN = false;
+	var must_use_dice = false;
 
 	for(let i=0;i<13;i++){
 		let name = 'assets/'+('00'+i).slice(-2)+'.jpg';
@@ -82,9 +83,22 @@ const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Ent
 		socket.on('EF-gobutton',e=>{
 			let b = create('button','Start');
 			obj('wait').appendChild(b);
+			var opt_div = create('div');
 			b.on('click',e=>{
-				socket.emit('EF-begin');
+				var opts = [...opt_div.querySelectorAll('input')].map(e=>+e.checked).join('');
+				socket.emit('EF-begin',opts);
 			});
+			opt_div.id = 'options';
+			opt_div.innerHTML = '<h3>Game Options</h3>';
+			opt_div.appendChild(create('p','Stop at 3 Cards'));
+			opt_div.appendChild(createSlider());
+			opt_div.appendChild(create('p','Play until all cards are gone'));
+			opt_div.innerHTML += '<br>';
+			opt_div.appendChild(create('p','No Dice Restrictions'));
+			opt_div.appendChild(createSlider());
+			opt_div.appendChild(create('p','You have to use both dice'));
+			opt_div.innerHTML += '<br>';
+			obj('wait').appendChild(opt_div);
 		});
 		socket.on('EF-waitdata',e=>{
 			people = e;
@@ -178,15 +192,32 @@ const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Ent
 				shuffleCards();
 			} else if(data.data[0] == 'popdeck'){
 				cards.shift();
+				console.log('PopDeck');
 			} else if(data.data[0] == 'guess'){
 				let tree_ix = Number(data.data[1]);
 				Tree.all[tree_ix].shiny = true;
 				setTimeout(()=>{
 					Tree.all[tree_ix].shiny = false;
-				},2500);
+				},3000);
 			}
 		});
 		socket.on('EF-winner',displayWinner);
+	}
+
+	function createSlider(){
+		let label = create('label');
+		label.classList.add('switch');
+		let input = create('input');
+		input.type = 'checkbox';
+		let span = create('span');
+		span.classList.add('slider');
+		label.appendChild(input);
+		label.appendChild(span);
+		return label;
+		//	<label class="switch">
+		//		<input type="checkbox">
+		//		<span class="slider"></span>
+		//	</label>
 	}
 
 	function displayWinner(winner){
@@ -255,12 +286,12 @@ const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Ent
 			await prom;
 			socket.emit('EF-turninfo','showdice');
 		}
-		let d1 = new Button(445,475,25,25,click=>{
+		let d1 = new Button(425,480,25,25,click=>{
 			if(!MY_TURN) return;
 			current_dice = d1;
 		},loadImage(`assets/dice${n1}.jpg`));
 		d1.num = n1;
-		let d2 = new Button(445+30,475,25,25,click=>{
+		let d2 = new Button(425+30,480,25,25,click=>{
 			if(!MY_TURN) return;
 			current_dice = d2;
 		},loadImage(`assets/dice${n2}.jpg`));
@@ -268,14 +299,14 @@ const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Ent
 		let magic,shuffle,guess;
 		d2.num = n2;
 		if(n1==n2){
-			magic = new Button(445-30,475,25,25,click=>{
+			magic = new Button(425-30,480,25,25,click=>{
 				if(!MY_TURN) return;
 				current_dice = magic;
 			},loadImage('assets/magic.png'));
 			magic.num = 'm';
 			shuffle = new Button(622,292,25,25,click=>{
 				if(!MY_TURN) return;
-				for(let d of dice) if(!d.resist) d.hide();
+				for(let d of dice) if(!d.resist){d.hide()}else{d.show()}
 				current_dice = null;
 				for(let c of Circle.all) c.isOpt = false;
 				shuffleCards();
@@ -285,25 +316,27 @@ const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Ent
 		if(Piece.all[turn.pix].circle.ix == 123 && MY_TURN){
 			onkey = true;
 			guess = new Button(622-30,292,25,25,click=>{
-				for(let d of dice) if(!d.resist) d.hide();
+				for(let d of dice) if(!d.resist){d.hide()}else{d.show()}
 				current_dice = null;
 				keyLand();
 				current_dice = null;
 				for(let c of Circle.all) c.isOpt = false;
 			},loadImage('assets/guess.png'));
 		}
-		let done = new Button(445+60+10,475,50,25,click=>{
+		let done = new Button(425+60+50,480,50,25,click=>{
 			d1.hide();
 			d2.hide();
 			done.hide();
 			if(magic) magic.hide();
 			if(shuffle) shuffle.hide();
+			Tree.light = false;
 			current_dice = null;
 			for(let c of Circle.all) c.isOpt = false;
 			if(finishTurn) finishTurn();
 			else console.warn('Finish Turn didn\'t work');
 		},loadImage(`assets/done.png`));
 		done.resist = true;
+		if(must_use_dice) done.hide();
 		if(popup){
 			dice = [d1,d2,done];
 			if(n1==n2){
@@ -362,7 +395,8 @@ const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Ent
 	}
 
 	function setup(data){
-		seed = data;
+		seed = data.seed;
+		must_use_dice = !!+data.opts[1];
 		clips = getClips(cards);
 		clips = clips.sort((a,b)=>pRandom()-.5);
 		for(let i=0;i<13;i++){
@@ -451,15 +485,20 @@ const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Ent
 				if(current_dice.num=='m'){
 					for(let d of dice){
 						if(!d.resist) d.hide();
-					}
-				} else {
-					for(let d of dice){
-						if(typeof d.num != 'number'){
-							if(!d.resist){
-								d.hide();
-							}
+						else {
+							d.show();
 						}
 					}
+				} else {
+					var still_has_numbers = false;
+					for(let d of dice){
+						if(typeof d.num == 'number' && d.visible){
+							still_has_numbers = true;
+						} else if(!d.resist){
+							d.hide();
+						}
+					}
+					if(!still_has_numbers) dice[2].show();
 				}
 				current_dice = null;
 				socket.emit('EF-turninfo','moveto '+path.map(e=>e.ix).join());
@@ -483,13 +522,13 @@ const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Ent
 			// CERTAIN CIRCLE DATA
 		}
 		if(!big_card){
-			ctx.drawImage(cards[0].img,545,160,63,111);
+			if(cards[0]) ctx.drawImage(cards[0].img,545,160,63,111);
 		}
 		for(let piece of Piece.all) piece.draw();
 		if(big_clip) big_clip.drawTree();
 		for(let die of dice) die.draw(die==current_dice?'green':'transparent');
 		if(big_card){
-			ctx.drawImage(cards[0].img,545-63/2,160-111/2,63*2,111*2);
+			if(cards[0]) ctx.drawImage(cards[0].img,545-63/2,160-111/2,63*2,111*2);
 		}
 	}
 
@@ -498,16 +537,15 @@ const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Ent
 		let p = new Promise((res,rej)=>{
 			guesstreeprom = res;
 		});
-		let tree_ix = await p;
-		socket.emit('EF-turninfo','guess '+tree_ix);
+		let hint_ix = await p;
 		guesstreeprom = null;
 		Tree.light = false;
-		return cards[0].ix == tree_ix;
+		return cards[0].ix == hint_ix;
 	}
 
 	async function keyLand(){
 		let correct = await guessTree();
-		for(let die of dice) if(!die.resist) die.hide();
+		for(let die of dice) if(!die.resist) {die.hide();} else {die.show()}
 		if(correct){
 			gotCard = true;
 			socket.emit('EF-turninfo','popdeck');
@@ -577,11 +615,11 @@ const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Ent
 		constructor(pos,ix){
 			function onclick(){
 				if(show_hint){
-					this.showHint().then(e=>{
-						if(guesstreeprom){
-							guesstreeprom(this.hint);
-						}
-					});
+					socket.emit('EF-turninfo','guess '+this.ix);
+					this.showHint();
+					if(guesstreeprom){
+						guesstreeprom(this.hint);
+					}
 				}
 			}
 			super(pos.x+17,pos.y+27,36,48,onclick,loadImage('assets/tree.png'));

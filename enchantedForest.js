@@ -12,6 +12,7 @@ class Game{
 		this.turn = -1;
 		this.seed = random(0,3000);
 		// this.seed = 235;
+		this.play23 = true;
 		this.admin.emit('EF-gobutton');
 		this.over = false;
 		games.push(this);
@@ -47,15 +48,16 @@ class Game{
 			p.emit(msg,dat);
 		}
 	}
-	start(){
+	start(e){
 		for(let p of this.players){
 			if(!p.color){
 				p.color = this.colors.shift();
 			}
 		}
 		this.sendLobbyInfo();
+		this.play23 = !+e[1];
 		setTimeout(()=>{
-			this.msgAll('EF-game_start',this.seed);
+			this.msgAll('EF-game_start',{seed:this.seed,opts:e});
 			this.nextTurn();
 		},50);
 	}
@@ -106,14 +108,14 @@ function handleData(player){
 		player.game.sendLobbyInfo();
 	});
 	socket.on('EF-begin',e=>{
-		player.game.start();
+		player.game.start(e);
 	});
 	socket.on('EF-nextturn',scored=>{
 		player.game.nextTurn();
 	});
 	socket.on('EF-turninfo',data=>{
 		let person = player.game.players.indexOf(player);
-		console.log({data,person});
+		// console.log({data,person});
 		player.game.msgAll('EF-otherturn',{data,person});
 	});
 	socket.on('EF-sendpoints',data=>{
@@ -124,9 +126,28 @@ function handleData(player){
 		});
 		console.log('Updating Points:',players);
 		player.game.msgAll('EF-showPoints',players);
-		if(player.points > 2){
-			player.game.msgAll('EF-winner',player.name);
-			player.game.over = true;
+		if(player.game.play23){
+			if(player.points > 2){
+				player.game.msgAll('EF-winner',player.name);
+				player.game.over = true;
+			}
+		} else {
+			let total = 0;
+			let winner = '';
+			let win_score = 0;
+			for(let p of player.game.players){
+				total += p.points;
+				if(p.points > win_score){
+					win_score = p.points;
+					winner = p.name;
+				} else if (p.points == win_score){
+					winner += ' and '+p.name;
+				}
+			}
+			if(total == 13){
+				player.game.msgAll('EF-winner',winner);
+				player.game.over = true;
+			}
 		}
 	});
 }
