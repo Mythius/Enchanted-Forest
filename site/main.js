@@ -5,7 +5,7 @@ const g = obj('game');
 hide(g);
 obj('iframe').style.opacity = 0;
 hide(obj('iframe'));
-const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Enter Name');
+const name = location.href.includes('?')?decodeURI(location.href.split('?')[1]):prompt('Enter Name');
 
 (function(global){
 	const MAP = loadImage('assets/map.jpg');
@@ -274,16 +274,15 @@ const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Ent
 		if(popup){
 			iframe = obj('iframe');
 			mouse.down = false;
-			iframe.src = `rolldice.html?${n1}.${n2}`;
-			show(iframe);
-			iframe.style.opacity = 1;
 			let prom = new Promise((res,rej)=>{
-				setTimeout(e=>{
-					iframe.contentWindow.data = 'hi';
+				iframe.onload = function(){
+					show(iframe);
+					iframe.style.opacity = 1;
 					iframe.contentWindow.callback = function(){
 						setTimeout(res,500);
 					}
-				},700);
+				}
+				iframe.src = `rolldice.html?${n1}.${n2}`;
 			});
 			await prom;
 			socket.emit('EF-turninfo','showdice');

@@ -11,6 +11,7 @@ class Game{
 		this.colors = ['purple','yellow','green','tan','red','blue'];
 		this.turn = -1;
 		this.seed = random(0,3000);
+		this.sum = 0;
 		// this.seed = 235;
 		this.play23 = true;
 		this.admin.emit('EF-gobutton');
@@ -120,6 +121,7 @@ function handleData(player){
 	});
 	socket.on('EF-sendpoints',data=>{
 		player.points++;
+		player.game.sum++;
 		let ix = 0;
 		let players = player.game.players.map(player=>{
 			return {ix:ix++,points:player.points,name:player.name};
@@ -132,11 +134,9 @@ function handleData(player){
 				player.game.over = true;
 			}
 		} else {
-			let total = 0;
 			let winner = '';
 			let win_score = 0;
 			for(let p of player.game.players){
-				total += p.points;
 				if(p.points > win_score){
 					win_score = p.points;
 					winner = p.name;
@@ -144,7 +144,7 @@ function handleData(player){
 					winner += ' and '+p.name;
 				}
 			}
-			if(total == 13){
+			if(player.game.sum == 13){
 				player.game.msgAll('EF-winner',winner);
 				player.game.over = true;
 			}
@@ -166,6 +166,7 @@ function removePlayer(player){
 		if(ix!=-1) player.game.players.splice(ix,1);
 		player.game.msgAll('dc',{name:player.name,ix});
 		if(ix == player.game.turn){
+			player.game.turn--;
 			player.game.nextTurn();
 		}
 	}
