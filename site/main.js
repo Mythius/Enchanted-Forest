@@ -94,9 +94,9 @@ const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Ent
 			opt_div.appendChild(createSlider());
 			opt_div.appendChild(create('p','Play until all cards are gone'));
 			opt_div.innerHTML += '<br>';
-			opt_div.appendChild(create('p','No Dice Restrictions'));
+			opt_div.appendChild(create('p','Using Dice is Optional'));
 			opt_div.appendChild(createSlider());
-			opt_div.appendChild(create('p','You have to use both dice'));
+			opt_div.appendChild(create('p','Both Dice are Required'));
 			opt_div.innerHTML += '<br>';
 			obj('wait').appendChild(opt_div);
 		});
@@ -148,7 +148,8 @@ const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Ent
 			}
 		});
 		socket.on('dc',person=>{
-			alert(person+' left the game');
+			Piece.all.splice(person.ix,1);
+			obj('#players').children[person.ix].remove();
 		});
 		socket.on('EF-game_start',data=>{
 			hide(obj('lobby'));
@@ -160,6 +161,7 @@ const name = location.href.includes('?')?location.href.split('?')[1]:prompt('Ent
 		});
 		socket.on('EF-turn',data=>{
 			turn = data;
+			pboxes = [...obj('#players').children];
 			for(let pbox of pboxes){
 				pbox.style.border = '5px solid #222';
 			}

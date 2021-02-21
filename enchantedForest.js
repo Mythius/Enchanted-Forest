@@ -162,9 +162,12 @@ function removePlayer(player){
 	if(player.game.admin == player){
 		player.game.delete();
 	} else if(player.game){
-		player.game.admin.emit('dc',player.name);
 		let ix = player.game.players.indexOf(player);
 		if(ix!=-1) player.game.players.splice(ix,1);
+		player.game.msgAll('dc',{name:player.name,ix});
+		if(ix == player.game.turn){
+			player.game.nextTurn();
+		}
 	}
 	let ix = ingame.indexOf(player);
 	if(ix!=-1) ingame.splice(ix,1);
