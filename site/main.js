@@ -396,7 +396,7 @@ const name = location.href.includes('?')?decodeURI(location.href.split('?')[1]):
 	}
 
 	function setup(data){
-		seed = data.seed;
+		setSeed(data.seed);
 		must_use_dice = !!+data.opts[1];
 		clips = getClips(cards);
 		clips = clips.sort((a,b)=>pRandom()-.5);
@@ -409,6 +409,7 @@ const name = location.href.includes('?')?decodeURI(location.href.split('?')[1]):
 				new Piece(people[i].color,i);
 			}
 		}
+		console.log('Your Seed: '+data.seed)
 	}
 
 	function getClips(cards){
