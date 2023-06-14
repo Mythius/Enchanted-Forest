@@ -408,7 +408,7 @@ const name = location.href.includes('?') ? decodeURI(location.href.split('?')[1]
         let currentIndex = array.length,
             randomIndex;
         while (currentIndex != 0) {
-            randomIndex = Math.floor(Math.random() * currentIndex);
+            randomIndex = Math.floor(pRandom()* currentIndex);
             currentIndex--;
             [array[currentIndex], array[randomIndex]] = [
                 array[randomIndex], array[currentIndex]
