@@ -164,7 +164,7 @@ function removePlayer(player){
 	} else if(player.game){
 		let ix = player.game.players.indexOf(player);
 		if(ix!=-1) player.game.players.splice(ix,1);
-		player.game.msgAll('dc',{name:player.name,ix});
+		if(player.game.msgAll) player.game.msgAll('dc',{name:player.name,ix});
 		if(ix == player.game.turn){
 			player.game.turn--;
 			player.game.nextTurn();
